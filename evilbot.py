@@ -60,8 +60,8 @@ from evilbotconf import HOST, PORT, CHANNEL, NICK, USERNAME, REALNAME, BOTDIR
 from evilbotconf import PWFILE, FILEROOT, WEBROOT, LOGROOT, PINOBOT, ADMIN
 from evilbotconf import SERVERTAG
 
-try: from evilbotconf import LOGBASE
-except: LOGBASE = "/var/log/evilbot.log"
+#try: from evilbotconf import LOGBASE
+#except: LOGBASE = "/var/log/evilbot.log"
 try: from botconf import LL_TURNCOUNTS
 except: LL_TURNCOUNTS = {}
 try: from evilbotconf import DCBRIDGE
@@ -1608,7 +1608,7 @@ class DeathBotFactory(ReconnectingClientFactory):
 
 if __name__ == '__main__':
     # initialize logging
-    log.startLogging(DailyLogFile.fromFullPath(LOGBASE))
+    #log.startLogging(DailyLogFile.fromFullPath(LOGBASE))
 
     # create factory protocol and application
     f = DeathBotFactory()
