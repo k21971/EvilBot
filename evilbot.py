@@ -143,8 +143,8 @@ class DeathBotProtocol(irc.IRCClient):
         chanLog = open(chanLogName,'a')
         os.chmod(chanLogName,stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH)
 
-    xlogfiles = {filepath.FilePath(FILEROOT+"evilhack-0.9.0/var/xlogfile"): ("evil", "\t", "evilhack/dumplog/{starttime}.evil.html")}
-    livelogs  = {filepath.FilePath(FILEROOT+"evilhack-0.9.0/var/livelog"): ("evil", "\t")}
+    xlogfiles = {filepath.FilePath(FILEROOT+"evilhack-0.9.1/var/xlogfile"): ("evil", "\t", "evilhack/dumplog/{starttime}.evil.html")}
+    livelogs  = {filepath.FilePath(FILEROOT+"evilhack-0.9.1/var/livelog"): ("evil", "\t")}
 
     # Forward events to other bots at the request of maintainers of other variant-specific channels
     forwards = {"evil" : []}
@@ -169,7 +169,7 @@ class DeathBotProtocol(irc.IRCClient):
                          INPR+"evil071/", INPR+"evil080/",
                          INPR+"evil081/", INPR+"evil082/",
                          INPR+"evil083/", INPR+"evil084/",
-                         INPR+"evil090/"]}
+                         INPR+"evil090/", INPR+"evil091/"]}
 
     # for !whereis
     whereis = {"evil": [FILEROOT+"evilhack-0.4.0/var/whereis/",
@@ -184,7 +184,8 @@ class DeathBotProtocol(irc.IRCClient):
                         FILEROOT+"evilhack-0.8.2/var/whereis/",
                         FILEROOT+"evilhack-0.8.3/var/whereis/",
                         FILEROOT+"evilhack-0.8.4/var/whereis/",
-                        FILEROOT+"evilhack-0.9.0/var/whereis/"]}
+                        FILEROOT+"evilhack-0.9.0/var/whereis/",
+                        FILEROOT+"evilhack-0.9.1/var/whereis/"]}
 
     dungeons = {"evil": ["The Dungeons of Doom","Gehennom","The Gnomish Mines","Goblin Town",
                          "The Quest","Sokoban","Fort Ludios","The Ice Queen's Realm","The Hidden Dungeon",
@@ -223,14 +224,15 @@ class DeathBotProtocol(irc.IRCClient):
         "ill": "illithid",
         "trt": "tortle",
         "dro": "drow",
-        "dra": "draugr"
+        "dra": "draugr",
+        "vam": "vampire"
     }
     # save typing these out in multiple places
     evil_roles = ["arc","bar","cav","hea","kni","mon","pri",
                   "ran","rog","sam","tou","val","wiz","con",
                   "inf", "dru"]
     evil_races = ["dwa","elf","gno","hum","orc","gia","cen",
-                  "hob","ill","trt","dro","dra"]
+                  "hob","ill","trt","dro","dra","vam"]
 
     # varname: ([aliases],[roles],[races])
     # first alias will be used for !variant
