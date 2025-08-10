@@ -1,4 +1,4 @@
-# Instance-specific config for "EvilBot" bot.
+# Instance-specific config for "Hecubus" bot.
 #
 
 # server tag - mandatory for all instances
@@ -28,6 +28,10 @@ PINOBOT = "Pinoclone"
 # Name of bot in our channel that bridges discord network
 DCBRIDGE = "rld"
 
+# Enable Reddit monitoring for r/nethack (optional, default False)
+# Set to True to enable monitoring and announcing new posts
+ENABLE_REDDIT = False
+
 
 # people allowed to do certain admin things.
 # This is not terribly secure, as it does not verify the nick is authenticated. 
@@ -46,7 +50,7 @@ LL_TURNCOUNTS = {
 #            alias: (fqdn-of-server, remote-bot, path-to-local-copy-of-xlogfiles)
 # only define one of REMOTES or MASTERS
 REMOTES = { "hdf-eu": ("eu.hardfought.org", "Hecubus-EU", "/var/www/html/xlogfiles/"),
-            "hdf-au": ("au.hardfought.org", "Hecubus-AU", "/var/www/html/xlogfiles/")}
+            "hdf-eu": ("au.hardfought.org", "Hecubus-AU", "/var/www/html/xlogfiles/")}
 # If we're a remote "slave" bot, MASTERS defines who we announce to, and who we take
 # queries from for !whereis, etc.
 #MASTERS = ["Hecubus"]
