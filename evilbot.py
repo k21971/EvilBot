@@ -98,24 +98,12 @@ except: TEST = False
 try: from evilbotconf import ENABLE_REDDIT
 except: ENABLE_REDDIT = False
 
-# GitHub configuration - handle both new and legacy formats
+# GitHub configuration
 try:
-    from evilbotconf import ENABLE_GITHUB
+    from evilbotconf import ENABLE_GITHUB, GITHUB_REPOS
 except:
     ENABLE_GITHUB = False
-
-# Try to import GITHUB_REPOS (new format)
-try:
-    from evilbotconf import GITHUB_REPOS
-except:
     GITHUB_REPOS = []
-
-# Try to import legacy single repo configuration
-try:
-    from evilbotconf import GITHUB_REPO, GITHUB_BRANCH
-except:
-    GITHUB_REPO = None
-    GITHUB_BRANCH = None
 
 # Check for remotes
 try:
@@ -463,13 +451,8 @@ class DeathBotProtocol(irc.IRCClient):
         self.github_initialized = False
         self.github_repos = []
 
-        if ENABLE_GITHUB:
-            # Check for new multi-repo configuration first
-            if GITHUB_REPOS:
-                self.github_repos = GITHUB_REPOS
-            # Fall back to legacy single repo configuration
-            elif GITHUB_REPO:
-                self.github_repos = [{"repo": GITHUB_REPO, "branch": GITHUB_BRANCH or "master"}]
+        if ENABLE_GITHUB and GITHUB_REPOS:
+            self.github_repos = GITHUB_REPOS
 
             # Initialize seen commits for each repo
             for repo_config in self.github_repos:
@@ -765,7 +748,8 @@ class DeathBotProtocol(irc.IRCClient):
         # Check GitHub for new commits (every minute)
         if not SLAVE and ENABLE_GITHUB and self.github_repos:
             self.looping_calls["github"] = task.LoopingCall(self.checkGitHub)
-            self.looping_calls["github"].start(60)  # 1 minute
+            # Add initial delay to ensure bot is fully connected before first check
+            self.looping_calls["github"].start(60, now=False)  # 1 minute interval, don't run immediately
 
     def nickCheck(self):
         # also rejoin the channel here, in case we drop off for any reason
@@ -1545,6 +1529,10 @@ class DeathBotProtocol(irc.IRCClient):
         for repo_config in self.github_repos:
             self._checkGitHubRepo(repo_config)
 
+        # Mark as initialized only after ALL repos have been checked
+        if not self.github_initialized:
+            self.github_initialized = True
+
     def _checkGitHubRepo(self, repo_config):
         """Check a single GitHub repo for new commits"""
         repo = repo_config["repo"]
@@ -1607,10 +1595,6 @@ class DeathBotProtocol(irc.IRCClient):
 
                         # Announce to channel
                         self.msgLog(CHANNEL, msg)
-
-            # Mark as initialized after first check of any repo
-            if not self.github_initialized:
-                self.github_initialized = True
 
             # Clean up old commits to prevent memory growth
             # Keep only the 50 most recent commit IDs per repo
@@ -2534,7 +2518,8 @@ class DeathBotProtocol(irc.IRCClient):
     def connectionLost(self, reason=None):
         if self.looping_calls is None: return
         for call in self.looping_calls.values():
-            call.stop()
+            if call.running:
+                call.stop()
         # Clean up shelve databases
         if hasattr(self, 'tellbuf') and self.tellbuf is not None:
             self.tellbuf.close()

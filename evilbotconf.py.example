@@ -44,11 +44,6 @@ GITHUB_REPOS = [
     # {"repo": "k21971/EvilBot", "branch": "master"},
 ]
 
-# Legacy single repo configuration (deprecated, use GITHUB_REPOS instead)
-# These are kept for backward compatibility
-GITHUB_REPO = "k21971/EvilHack"  # Deprecated: use GITHUB_REPOS
-GITHUB_BRANCH = "master"  # Deprecated: use GITHUB_REPOS
-
 # people allowed to do certain admin things.
 # This is not terribly secure, as it does not verify the nick is authenticated. 
 ADMIN = ["K2", "Tangles"]
