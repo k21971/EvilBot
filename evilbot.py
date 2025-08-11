@@ -734,10 +734,10 @@ class DeathBotProtocol(irc.IRCClient):
             self.looping_calls["reddit"] = task.LoopingCall(self.checkReddit)
             self.looping_calls["reddit"].start(300)  # 5 minutes
 
-        # Check GitHub for new commits (every 2 minutes)
+        # Check GitHub for new commits (every minute)
         if not SLAVE and ENABLE_GITHUB and hasattr(self, 'GITHUB_REPO'):
             self.looping_calls["github"] = task.LoopingCall(self.checkGitHub)
-            self.looping_calls["github"].start(120)  # 2 minutes
+            self.looping_calls["github"].start(60)  # 1 minute
 
     def nickCheck(self):
         # also rejoin the channel here, in case we drop off for any reason
@@ -1554,8 +1554,18 @@ class DeathBotProtocol(irc.IRCClient):
                         # Sanitize title - remove format string placeholders
                         title = sanitize_format_string(title)
 
-                        # Format message with light green [EvilHack]
-                        msg = f"[\x0309EvilHack\x03] {title} {link}"
+                        # Format message like botifico with IRC colors:
+                        # - 12 (Light Blue) + bold for repository name
+                        # - 07 (Orange) for username
+                        # - 03 (Dark Green) for commit hash and branch
+                        # - 13 (Pink/Magenta) for URLs
+                        # Get short commit hash (first 7 chars)
+                        short_hash = commit_id[:7] if commit_id else "unknown"
+
+                        # Format: [EvilHack] k21971 pushed 1 commit to master
+                        # Then: [EvilHack] k21971 844574b - Commit message
+                        # Using bold (\x02) for repository name
+                        msg = f"[\x02\x0312EvilHack\x03\x02] \x0307{author}\x03 \x0303{short_hash}\x03 - {title} \x0313{link}\x03"
 
                         # Announce to channel
                         self.msgLog(CHANNEL, msg)
