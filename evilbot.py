@@ -415,8 +415,8 @@ class DeathBotProtocol(irc.IRCClient):
         self.asc = {}
         self.allgames = {}
         for v in self.variants:
-            self.asc[v] = {};
-            self.allgames[v] = {};
+            self.asc[v] = {}
+            self.allgames[v] = {}
 
     def _initializeDatabases(self):
         """Initialize shelve databases"""
@@ -1550,7 +1550,7 @@ class DeathBotProtocol(irc.IRCClient):
                 else:
                     # oxford comma for 3 or more
                     fromstr = f"{', '.join(safe_nicks[:-1])}, and {safe_nicks[-1]}"
-                self.respond(CHANNEL, user, f"Messages from {fromstr} have been forwarded to you privately.");
+                self.respond(CHANNEL, user, f"Messages from {fromstr} have been forwarded to you privately.")
 
         else:
             for (forwardto,sender,ts,message) in self.tellbuf[plainuser]:
@@ -2371,9 +2371,9 @@ class DeathBotProtocol(irc.IRCClient):
         # more 1.3d shite
         elif "genocided_monster" in event:
             if event.get("dungeon_wide","yes") == "yes":
-                event["genoscope"] = "dungeon wide";
+                event["genoscope"] = "dungeon wide"
             else:
-                event["genoscope"] = "locally";
+                event["genoscope"] = "locally"
             yield (f"[{event['displaystring']}] {event['player']} ({event['role']} {event['race']} {event['gender']} {event['align']}) "
                    f"genocided {event['genocided_monster']} {event['genoscope']} on T:{event['turns']}")
         elif "shoplifted" in event:
