@@ -32,6 +32,14 @@ DCBRIDGE = "rld"
 # Set to True to enable monitoring and announcing new posts
 ENABLE_REDDIT = False
 
+# Enable GitHub commit monitoring (optional, default False)
+# Set to True to enable monitoring and announcing new commits
+ENABLE_GITHUB = False
+# GitHub repository to monitor (format: "owner/repo")
+GITHUB_REPO = "k21971/EvilHack"
+# Branch to monitor (usually "master" or "main")
+GITHUB_BRANCH = "master"
+
 
 # people allowed to do certain admin things.
 # This is not terribly secure, as it does not verify the nick is authenticated. 

@@ -97,6 +97,11 @@ try: from evilbotconf import TEST
 except: TEST = False
 try: from evilbotconf import ENABLE_REDDIT
 except: ENABLE_REDDIT = False
+try: from evilbotconf import ENABLE_GITHUB, GITHUB_REPO, GITHUB_BRANCH
+except:
+    ENABLE_GITHUB = False
+    GITHUB_REPO = None
+    GITHUB_BRANCH = None
 try:
     from evilbotconf import REMOTES
 except:
@@ -436,6 +441,13 @@ class DeathBotProtocol(irc.IRCClient):
         self.seen_reddit_posts = set()
         self.reddit_initialized = False
 
+        # for GitHub monitoring
+        self.seen_github_commits = set()
+        self.github_initialized = False
+        if ENABLE_GITHUB and GITHUB_REPO:
+            self.GITHUB_REPO = GITHUB_REPO
+            self.GITHUB_BRANCH = GITHUB_BRANCH or "master"
+
     def _initializeCommands(self):
         """Initialize command mappings"""
 
@@ -721,6 +733,11 @@ class DeathBotProtocol(irc.IRCClient):
         if not SLAVE and ENABLE_REDDIT:
             self.looping_calls["reddit"] = task.LoopingCall(self.checkReddit)
             self.looping_calls["reddit"].start(300)  # 5 minutes
+
+        # Check GitHub for new commits (every 2 minutes)
+        if not SLAVE and ENABLE_GITHUB and hasattr(self, 'GITHUB_REPO'):
+            self.looping_calls["github"] = task.LoopingCall(self.checkGitHub)
+            self.looping_calls["github"].start(120)  # 2 minutes
 
     def nickCheck(self):
         # also rejoin the channel here, in case we drop off for any reason
@@ -1218,6 +1235,11 @@ class DeathBotProtocol(irc.IRCClient):
             reddit_count = len(self.seen_reddit_posts)
             status_parts.append(f"Reddit: {reddit_count} posts tracked")
 
+        # GitHub monitoring status
+        if hasattr(self, 'seen_github_commits') and not SLAVE and ENABLE_GITHUB:
+            github_count = len(self.seen_github_commits)
+            status_parts.append(f"GitHub: {github_count} commits tracked")
+
         self.respond(replyto, sender, " | ".join(status_parts))
 
     # The following started as !tea resulting in the bot making a cup of tea.
@@ -1480,6 +1502,82 @@ class DeathBotProtocol(irc.IRCClient):
             print(f"Error parsing Reddit RSS XML: {e}")
         except Exception as e:
             print(f"Unexpected error checking Reddit: {e}")
+
+    # GitHub monitoring via Atom feed
+    def checkGitHub(self):
+        """Check EvilHack GitHub repo for new commits via Atom feed and announce them"""
+        if SLAVE:
+            return  # Only master bot monitors GitHub
+        if not hasattr(self, 'GITHUB_REPO'):
+            return  # GitHub monitoring not configured
+        try:
+            # GitHub Atom feed for commits on main branch
+            url = f"https://github.com/{self.GITHUB_REPO}/commits/{self.GITHUB_BRANCH}.atom"
+            headers = {"User-Agent": "EvilBot IRC Bot/1.0"}
+
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                print(f"GitHub Atom feed returned status {r.status_code}")
+                return
+
+            # Parse XML
+            root = ET.fromstring(r.text)
+
+            # GitHub uses Atom format
+            ns = {'atom': 'http://www.w3.org/2005/Atom'}
+            entries = root.findall('atom:entry', ns)
+
+            for entry in entries:
+                # Extract commit information
+                id_elem = entry.find('atom:id', ns)
+                title_elem = entry.find('atom:title', ns)
+                link_elem = entry.find('atom:link', ns)
+                author_elem = entry.find('atom:author/atom:name', ns)
+
+                # Get commit ID from the id tag (format: tag:github.com,2008:Grit::Commit/SHA)
+                commit_id = None
+                if id_elem is not None and id_elem.text:
+                    parts = id_elem.text.split('/')
+                    if parts:
+                        commit_id = parts[-1]
+
+                title = title_elem.text.strip() if title_elem is not None and title_elem.text else ""
+                link = link_elem.get('href', '') if link_elem is not None else ""
+                author = author_elem.text if author_elem is not None else "unknown"
+
+                # Check if we've seen this commit before
+                if commit_id and title and commit_id not in self.seen_github_commits:
+                    self.seen_github_commits.add(commit_id)
+
+                    # Only announce if this is a recent check (not first run)
+                    if hasattr(self, "github_initialized") and self.github_initialized:
+                        # Sanitize title - remove format string placeholders
+                        title = sanitize_format_string(title)
+
+                        # Format message with light green [EvilHack]
+                        msg = f"[\x0309EvilHack\x03] {title} {link}"
+
+                        # Announce to channel
+                        self.msgLog(CHANNEL, msg)
+
+            # Mark as initialized after first check
+            self.github_initialized = True
+
+            # Clean up old commits to prevent memory growth
+            # Keep only the 50 most recent commit IDs
+            if len(self.seen_github_commits) > 50:
+                # Convert to list and keep newest 50
+                commit_list = list(self.seen_github_commits)
+                self.seen_github_commits = set(commit_list[-50:])
+
+        except requests.exceptions.Timeout:
+            print("Timeout checking GitHub Atom feed")
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching GitHub Atom feed: {e}")
+        except ET.ParseError as e:
+            print(f"Error parsing GitHub Atom XML: {e}")
+        except Exception as e:
+            print(f"Unexpected error checking GitHub: {e}")
 
     def takeMessage(self, sender, replyto, msgwords):
         if len(msgwords) < 3:
