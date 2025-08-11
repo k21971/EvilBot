@@ -1,4 +1,4 @@
-# Instance-specific config for "Hecubus" bot.
+# Instance-specific config for "Hecubus" bot
 #
 
 # server tag - mandatory for all instances
@@ -35,11 +35,19 @@ ENABLE_REDDIT = False
 # Enable GitHub commit monitoring (optional, default False)
 # Set to True to enable monitoring and announcing new commits
 ENABLE_GITHUB = False
-# GitHub repository to monitor (format: "owner/repo")
-GITHUB_REPO = "k21971/EvilHack"
-# Branch to monitor (usually "master" or "main")
-GITHUB_BRANCH = "master"
 
+# GitHub repositories to monitor (list of dicts with repo and branch)
+# Each entry should have 'repo' (format: "owner/repo") and 'branch' (usually "master" or "main")
+GITHUB_REPOS = [
+    {"repo": "k21971/EvilHack", "branch": "master"},
+    # Add more repositories here:
+    # {"repo": "k21971/EvilBot", "branch": "master"},
+]
+
+# Legacy single repo configuration (deprecated, use GITHUB_REPOS instead)
+# These are kept for backward compatibility
+GITHUB_REPO = "k21971/EvilHack"  # Deprecated: use GITHUB_REPOS
+GITHUB_BRANCH = "master"  # Deprecated: use GITHUB_REPOS
 
 # people allowed to do certain admin things.
 # This is not terribly secure, as it does not verify the nick is authenticated. 
@@ -58,7 +66,7 @@ LL_TURNCOUNTS = {
 #            alias: (fqdn-of-server, remote-bot, path-to-local-copy-of-xlogfiles)
 # only define one of REMOTES or MASTERS
 REMOTES = { "hdf-eu": ("eu.hardfought.org", "Hecubus-EU", "/var/www/html/xlogfiles/"),
-            "hdf-eu": ("au.hardfought.org", "Hecubus-AU", "/var/www/html/xlogfiles/")}
+            "hdf-au": ("au.hardfought.org", "Hecubus-AU", "/var/www/html/xlogfiles/")}
 # If we're a remote "slave" bot, MASTERS defines who we announce to, and who we take
 # queries from for !whereis, etc.
 #MASTERS = ["Hecubus"]

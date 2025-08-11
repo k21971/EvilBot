@@ -97,9 +97,13 @@ try: from evilbotconf import TEST
 except: TEST = False
 try: from evilbotconf import ENABLE_REDDIT
 except: ENABLE_REDDIT = False
-try: from evilbotconf import ENABLE_GITHUB, GITHUB_REPO, GITHUB_BRANCH
+try: from evilbotconf import ENABLE_GITHUB, GITHUB_REPOS
 except:
     ENABLE_GITHUB = False
+    GITHUB_REPOS = []
+# Support legacy single repo configuration
+try: from evilbotconf import GITHUB_REPO, GITHUB_BRANCH
+except:
     GITHUB_REPO = None
     GITHUB_BRANCH = None
 try:
@@ -442,11 +446,23 @@ class DeathBotProtocol(irc.IRCClient):
         self.reddit_initialized = False
 
         # for GitHub monitoring
-        self.seen_github_commits = set()
+        # Use a dict to track commits per repository
+        self.seen_github_commits = {}  # repo -> set of commit IDs
         self.github_initialized = False
-        if ENABLE_GITHUB and GITHUB_REPO:
-            self.GITHUB_REPO = GITHUB_REPO
-            self.GITHUB_BRANCH = GITHUB_BRANCH or "master"
+        self.github_repos = []
+
+        if ENABLE_GITHUB:
+            # Check for new multi-repo configuration first
+            if GITHUB_REPOS:
+                self.github_repos = GITHUB_REPOS
+            # Fall back to legacy single repo configuration
+            elif GITHUB_REPO:
+                self.github_repos = [{"repo": GITHUB_REPO, "branch": GITHUB_BRANCH or "master"}]
+
+            # Initialize seen commits for each repo
+            for repo_config in self.github_repos:
+                repo_key = repo_config["repo"]
+                self.seen_github_commits[repo_key] = set()
 
     def _initializeCommands(self):
         """Initialize command mappings"""
@@ -735,7 +751,7 @@ class DeathBotProtocol(irc.IRCClient):
             self.looping_calls["reddit"].start(300)  # 5 minutes
 
         # Check GitHub for new commits (every minute)
-        if not SLAVE and ENABLE_GITHUB and hasattr(self, 'GITHUB_REPO'):
+        if not SLAVE and ENABLE_GITHUB and self.github_repos:
             self.looping_calls["github"] = task.LoopingCall(self.checkGitHub)
             self.looping_calls["github"].start(60)  # 1 minute
 
@@ -1237,8 +1253,11 @@ class DeathBotProtocol(irc.IRCClient):
 
         # GitHub monitoring status
         if hasattr(self, 'seen_github_commits') and not SLAVE and ENABLE_GITHUB:
-            github_count = len(self.seen_github_commits)
-            status_parts.append(f"GitHub: {github_count} commits tracked")
+            if self.github_repos:
+                # Count total commits across all repos
+                total_commits = sum(len(commits) for commits in self.seen_github_commits.values())
+                repo_count = len(self.github_repos)
+                status_parts.append(f"GitHub: {total_commits} commits tracked across {repo_count} repos")
 
         self.respond(replyto, sender, " | ".join(status_parts))
 
@@ -1505,19 +1524,28 @@ class DeathBotProtocol(irc.IRCClient):
 
     # GitHub monitoring via Atom feed
     def checkGitHub(self):
-        """Check EvilHack GitHub repo for new commits via Atom feed and announce them"""
+        """Check GitHub repos for new commits via Atom feed and announce them"""
         if SLAVE:
             return  # Only master bot monitors GitHub
-        if not hasattr(self, 'GITHUB_REPO'):
+        if not self.github_repos:
             return  # GitHub monitoring not configured
+
+        for repo_config in self.github_repos:
+            self._checkGitHubRepo(repo_config)
+
+    def _checkGitHubRepo(self, repo_config):
+        """Check a single GitHub repo for new commits"""
+        repo = repo_config["repo"]
+        branch = repo_config.get("branch", "master")
+
         try:
-            # GitHub Atom feed for commits on main branch
-            url = f"https://github.com/{self.GITHUB_REPO}/commits/{self.GITHUB_BRANCH}.atom"
+            # GitHub Atom feed for commits on specified branch
+            url = f"https://github.com/{repo}/commits/{branch}.atom"
             headers = {"User-Agent": "EvilBot IRC Bot/1.0"}
 
             r = requests.get(url, headers=headers, timeout=10)
             if r.status_code != 200:
-                print(f"GitHub Atom feed returned status {r.status_code}")
+                print(f"GitHub Atom feed for {repo} returned status {r.status_code}")
                 return
 
             # Parse XML
@@ -1545,9 +1573,9 @@ class DeathBotProtocol(irc.IRCClient):
                 link = link_elem.get('href', '') if link_elem is not None else ""
                 author = author_elem.text if author_elem is not None else "unknown"
 
-                # Check if we've seen this commit before
-                if commit_id and title and commit_id not in self.seen_github_commits:
-                    self.seen_github_commits.add(commit_id)
+                # Check if we've seen this commit before for this repo
+                if commit_id and title and commit_id not in self.seen_github_commits[repo]:
+                    self.seen_github_commits[repo].add(commit_id)
 
                     # Only announce if this is a recent check (not first run)
                     if hasattr(self, "github_initialized") and self.github_initialized:
@@ -1555,37 +1583,36 @@ class DeathBotProtocol(irc.IRCClient):
                         title = sanitize_format_string(title)
 
                         # Format message like botifico with IRC colors:
-                        # - 12 (Light Blue) + bold for repository name
+                        # - 12 (Light Blue) for repository name
                         # - 07 (Orange) for username
-                        # - 03 (Dark Green) for commit hash and branch
+                        # - 03 (Dark Green) for commit hash
                         # - 13 (Pink/Magenta) for URLs
-                        # Get short commit hash (first 7 chars)
+                        repo_name = repo.split('/')[-1]  # Get repo name from owner/repo
                         short_hash = commit_id[:7] if commit_id else "unknown"
 
-                        # Format: [EvilHack] k21971 pushed 1 commit to master
-                        # Then: [EvilHack] k21971 844574b - Commit message
-                        # Using bold (\x02) for repository name
-                        msg = f"[\x0312EvilHack\x03] \x0307{author}\x03 \x0303{short_hash}\x03 - {title} \x0313{link}\x03"
+                        # Format: [RepoName] author hash - Commit message URL
+                        msg = f"[\x0312{repo_name}\x03] \x0307{author}\x03 \x0303{short_hash}\x03 - {title} \x0313{link}\x03"
 
                         # Announce to channel
                         self.msgLog(CHANNEL, msg)
 
-            # Mark as initialized after first check
-            self.github_initialized = True
+            # Mark as initialized after first check of any repo
+            if not self.github_initialized:
+                self.github_initialized = True
 
             # Clean up old commits to prevent memory growth
-            # Keep only the 50 most recent commit IDs
-            if len(self.seen_github_commits) > 50:
+            # Keep only the 50 most recent commit IDs per repo
+            if len(self.seen_github_commits[repo]) > 50:
                 # Convert to list and keep newest 50
-                commit_list = list(self.seen_github_commits)
-                self.seen_github_commits = set(commit_list[-50:])
+                commit_list = list(self.seen_github_commits[repo])
+                self.seen_github_commits[repo] = set(commit_list[-50:])
 
         except requests.exceptions.Timeout:
-            print("Timeout checking GitHub Atom feed")
+            print(f"Timeout checking GitHub Atom feed for {repo}")
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching GitHub Atom feed: {e}")
+            print(f"Error fetching GitHub Atom feed for {repo}: {e}")
         except ET.ParseError as e:
-            print(f"Error parsing GitHub Atom XML: {e}")
+            print(f"Error parsing GitHub Atom XML for {repo}: {e}")
         except Exception as e:
             print(f"Unexpected error checking GitHub: {e}")
 
