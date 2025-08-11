@@ -319,7 +319,7 @@ class DeathBotProtocol(irc.IRCClient):
     genders = ["Mal", "Fem"]
 
     #who is making tea? - bots of the nethack community who have influenced this project.
-    brethren = ["Rodney", "Athame", "Arsinoe", "Izchak", "TheresaMayBot", "FCCBot", "the late Pinobot", "Announcy", "demogorgon", "the /dev/null/oracle", "NotTheOracle\\dnt", "Croesus", "Hecubus", "Yendor"]
+    brethren = ["Rodney", "Athame", "Arsinoe", "Izchak", "TheresaMayBot", "FCCBot", "the late Pinobot", "Announcy", "demogorgon", "the /dev/null/oracle", "NotTheOracle\\dnt", "Croesus", "Beholder", "Yendor"]
     looping_calls = None
 
     # SASL auth nonsense required if we run on AWS
@@ -1565,7 +1565,7 @@ class DeathBotProtocol(irc.IRCClient):
                         # Format: [EvilHack] k21971 pushed 1 commit to master
                         # Then: [EvilHack] k21971 844574b - Commit message
                         # Using bold (\x02) for repository name
-                        msg = f"[\x02\x0312EvilHack\x03\x02] \x0307{author}\x03 \x0303{short_hash}\x03 - {title} \x0313{link}\x03"
+                        msg = f"[\x0312EvilHack\x03] \x0307{author}\x03 \x0303{short_hash}\x03 - {title} \x0313{link}\x03"
 
                         # Announce to channel
                         self.msgLog(CHANNEL, msg)
