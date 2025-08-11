@@ -97,15 +97,27 @@ try: from evilbotconf import TEST
 except: TEST = False
 try: from evilbotconf import ENABLE_REDDIT
 except: ENABLE_REDDIT = False
-try: from evilbotconf import ENABLE_GITHUB, GITHUB_REPOS
+
+# GitHub configuration - handle both new and legacy formats
+try:
+    from evilbotconf import ENABLE_GITHUB
 except:
     ENABLE_GITHUB = False
+
+# Try to import GITHUB_REPOS (new format)
+try:
+    from evilbotconf import GITHUB_REPOS
+except:
     GITHUB_REPOS = []
-# Support legacy single repo configuration
-try: from evilbotconf import GITHUB_REPO, GITHUB_BRANCH
+
+# Try to import legacy single repo configuration
+try:
+    from evilbotconf import GITHUB_REPO, GITHUB_BRANCH
 except:
     GITHUB_REPO = None
     GITHUB_BRANCH = None
+
+# Check for remotes
 try:
     from evilbotconf import REMOTES
 except:
