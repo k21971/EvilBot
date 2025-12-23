@@ -447,7 +447,7 @@ class DeathBotProtocol(irc.IRCClient):
 
         # for GitHub monitoring
         # Use a dict to track commits per repository
-        self.seen_github_commits = {}  # repo -> set of commit IDs
+        self.seen_github_commits = {}  # repo -> list of commit IDs (ordered)
         self.github_initialized = False
         self.github_repos = []
 
@@ -457,7 +457,7 @@ class DeathBotProtocol(irc.IRCClient):
             # Initialize seen commits for each repo
             for repo_config in self.github_repos:
                 repo_key = repo_config["repo"]
-                self.seen_github_commits[repo_key] = set()
+                self.seen_github_commits[repo_key] = []
 
     def _initializeCommands(self):
         """Initialize command mappings"""
@@ -1290,7 +1290,6 @@ class DeathBotProtocol(irc.IRCClient):
             "degrees" :{"Kelvin": [0, 500], "degrees Celsius": [-20,95], "degrees Fahrenheit": [-20,200]}, #sane-ish ranges
             "suppress": ["coffee", "junk", "booze", "potion", "fictional"] } # do not append these to the random description
 
-
     def doTea(self, sender, replyto, msgwords):
         if len(msgwords) > 1: target = msgwords[1]
         else: target = sender
@@ -1588,7 +1587,7 @@ class DeathBotProtocol(irc.IRCClient):
 
                 # Check if we've seen this commit before for this repo
                 if commit_id and title and commit_id not in self.seen_github_commits[repo]:
-                    self.seen_github_commits[repo].add(commit_id)
+                    self.seen_github_commits[repo].append(commit_id)
 
                     # Only announce if this is a recent check (not first run)
                     if hasattr(self, "github_initialized") and self.github_initialized:
@@ -1613,9 +1612,8 @@ class DeathBotProtocol(irc.IRCClient):
             # Clean up old commits to prevent memory growth
             # Keep only the 50 most recent commit IDs per repo
             if len(self.seen_github_commits[repo]) > 50:
-                # Convert to list and keep newest 50
-                commit_list = list(self.seen_github_commits[repo])
-                self.seen_github_commits[repo] = set(commit_list[-50:])
+                # Slice to keep the newest 50 (list maintains insertion order)
+                self.seen_github_commits[repo] = self.seen_github_commits[repo][-50:]
 
         except requests.exceptions.Timeout:
             print(f"Timeout checking GitHub Atom feed for {repo}")
@@ -1844,7 +1842,6 @@ class DeathBotProtocol(irc.IRCClient):
         outmsg = " :: ".join(msgs)
         if not outmsg: outmsg = f"{player} is not playing."
         self.respond(q["replyto"],q["sender"],outmsg)
-
 
     def plrVar(self, sender, replyto, msgwords):
         # for !streak and !asc, work out what player and variant they want
@@ -2268,7 +2265,6 @@ class DeathBotProtocol(irc.IRCClient):
         user = user.split('!')[0]
         self.log("-!- " + user + " changed the topic on " + channel + " to: " + newTopic)
 
-
     ### Xlog/livelog event processing
     def startscummed(self, game):
         return game["death"] in ("quit", "escaped") and game["points"] < 1000
@@ -2593,7 +2589,6 @@ class DeathBotFactory(ReconnectingClientFactory):
 #    deathservice = internet.SSLClient(HOST, PORT, f,
 #                                      ssl.ClientContextFactory())
 #    deathservice.setServiceParent(application)
-
 
 if __name__ == '__main__':
     # initialize logging
