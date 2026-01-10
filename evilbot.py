@@ -444,7 +444,7 @@ class DeathBotProtocol(irc.IRCClient):
             self.plr_tc = shelve.open(f"{BOTDIR}/plrtc", writeback=False, protocol=2)
 
         # for Reddit monitoring
-        self.seen_reddit_posts = set()
+        self.seen_reddit_posts = []  # list to maintain insertion order
         self.reddit_initialized = False
 
         # for GitHub monitoring
@@ -1489,7 +1489,7 @@ class DeathBotProtocol(irc.IRCClient):
 
                 # Check if we've seen this post before
                 if post_id and title and post_id not in self.seen_reddit_posts:
-                    self.seen_reddit_posts.add(post_id)
+                    self.seen_reddit_posts.append(post_id)
 
                     # Only announce if this is a recent check (not first run)
                     if hasattr(self, "reddit_initialized") and self.reddit_initialized:
@@ -1506,9 +1506,7 @@ class DeathBotProtocol(irc.IRCClient):
             # Clean up old posts to prevent memory growth
             # Keep only the 100 most recent post IDs
             if len(self.seen_reddit_posts) > 100:
-                # Convert to list, sort, and keep newest 100
-                post_list = list(self.seen_reddit_posts)
-                self.seen_reddit_posts = set(post_list[-100:])
+                self.seen_reddit_posts = self.seen_reddit_posts[-100:]
 
         except requests.exceptions.Timeout:
             print("Timeout checking Reddit RSS")
