@@ -2342,6 +2342,9 @@ class DeathBotProtocol(irc.IRCClient):
         return None
 
     def xlogfileReport(self, game, report = True):
+        # Skip explore mode games (flags & 0x2)
+        if "flags" in game and game["flags"] & 0x2:
+            return
         var = game["variant"] # Make code less ugly
         # lowercased name is used for lookups
         lname = game["name"].lower()
