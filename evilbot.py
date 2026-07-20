@@ -70,6 +70,13 @@ BURST_WINDOW = 1        # Burst protection: only 1 command per second window
 ABUSE_THRESHOLD = 10    # Consecutive commands before abuse penalty
 ABUSE_WINDOW = 30       # Time window for abuse detection (seconds)
 REDDIT_MAX_POST_AGE = 600  # Only announce Reddit posts younger than 10 minutes
+REDDIT_POLL_INTERVAL = 300  # How often to poll the Reddit RSS feed (seconds)
+REDDIT_POLL_OFFSET = 0     # Wall-clock offset within each poll interval. Reddit
+                           # rate limits per IP, so bots sharing this host must
+                           # not poll in the same window (Beholder uses 150)
+REDDIT_MAX_RETRIES = 2     # Re-polls allowed after a rate-limited (429) request
+REDDIT_RETRY_DELAY = 60    # Retry delay when Retry-After is absent (seconds)
+REDDIT_MAX_RETRY_DELAY = 120  # Cap on any Retry-After we are willing to honour
 ABUSE_PENALTY = 900     # Abuse penalty duration in seconds (15 minutes)
 RESPONSE_RATE_LIMIT = 1   # Max penalty messages per 2 minutes to prevent spam
 RESPONSE_RATE_WINDOW = 120  # Penalty message rate limit window (2 minutes)
@@ -450,6 +457,7 @@ class DeathBotProtocol(irc.IRCClient):
         # for Reddit monitoring
         self.seen_reddit_posts = []  # list to maintain insertion order
         self.reddit_initialized = False
+        self.reddit_delayed_calls = []  # pending startup/retry calls to cancel
 
         # for GitHub monitoring
         # Use a dict to track commits per repository
@@ -749,7 +757,12 @@ class DeathBotProtocol(irc.IRCClient):
         # Check Reddit for new posts (every 5 minutes)
         if not SLAVE and ENABLE_REDDIT:
             self.looping_calls["reddit"] = task.LoopingCall(self.checkReddit)
-            self.looping_calls["reddit"].start(300, now=False)  # 5 minutes, delay first check
+            # Anchor polls to wall-clock slots rather than to our start time, so
+            # our offset from other bots on this IP survives a restart
+            delay = (REDDIT_POLL_OFFSET - time.time()) % REDDIT_POLL_INTERVAL
+            if delay < 30: delay += REDDIT_POLL_INTERVAL  # keep clear of signon
+            self.trackRedditCall(reactor.callLater(delay,
+                                                   self.startRedditPolling))
 
         # Check GitHub for new commits (every minute)
         if not SLAVE and ENABLE_GITHUB and self.github_repos:
@@ -1429,7 +1442,43 @@ class DeathBotProtocol(irc.IRCClient):
         self.msgLog(replyto, random.choice(rumors))
 
     # Reddit monitoring via RSS
-    def checkReddit(self):
+    def trackRedditCall(self, delayed_call):
+        """Remember a pending Reddit call so connectionLost can cancel it"""
+        self.reddit_delayed_calls = [c for c in self.reddit_delayed_calls
+                                     if c.active()]
+        self.reddit_delayed_calls.append(delayed_call)
+
+    def startRedditPolling(self):
+        """Start Reddit polling on the wall-clock aligned schedule"""
+        reddit_call = self.looping_calls.get("reddit")
+        if reddit_call and not reddit_call.running:
+            reddit_call.start(REDDIT_POLL_INTERVAL, now=True)
+
+    def scheduleRedditRetry(self, retry_after, attempt):
+        """Re-poll after a 429, honouring Retry-After when it is supplied"""
+        if attempt >= REDDIT_MAX_RETRIES:
+            print(f"Reddit RSS rate limited, no retries left (attempt {attempt})")
+            return
+
+        delay = REDDIT_RETRY_DELAY
+        if retry_after:
+            try:
+                # Retry-After is either delta-seconds or an HTTP-date
+                delay = int(retry_after)
+            except (TypeError, ValueError):
+                try:
+                    retry_at = parsedate_to_datetime(retry_after)
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    delay = (retry_at - now_utc).total_seconds()
+                except (TypeError, ValueError):
+                    pass
+
+        delay = max(1, min(delay, REDDIT_MAX_RETRY_DELAY))
+        print(f"Reddit RSS rate limited, retrying in {delay:.0f}s")
+        self.trackRedditCall(reactor.callLater(delay, self.checkReddit,
+                                               attempt + 1))
+
+    def checkReddit(self, attempt=0):
         """Check r/nethack for new posts via RSS/Atom and announce them"""
         if SLAVE:
             return  # Only master bot monitors Reddit
@@ -1440,6 +1489,10 @@ class DeathBotProtocol(irc.IRCClient):
             headers = {"User-Agent": "Hecubus IRC Bot/1.0"}
 
             r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code == 429:
+                # Rate limited: another bot on this IP took the window first
+                self.scheduleRedditRetry(r.headers.get("Retry-After"), attempt)
+                return
             if r.status_code != 200:
                 print(f"Reddit RSS returned status {r.status_code}")
                 return
@@ -2574,6 +2627,8 @@ class DeathBotProtocol(irc.IRCClient):
 
     def connectionLost(self, reason=None):
         if self.looping_calls is None: return
+        for call in getattr(self, "reddit_delayed_calls", []):
+            if call.active(): call.cancel()
         for call in self.looping_calls.values():
             if call.running:
                 call.stop()
